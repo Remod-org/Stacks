@@ -8,6 +8,7 @@ All commands currently require admin
     - /stack NUM -- Set the stack size for the currently held item to NUM
     - /stack ITEMNAME -- Show current stack size for the named item
     - /stack ITEMNAME NUM -- Set the stack size for the named item to NUM
+	- /stack search ITEMNAME -- Search for ITEMNAME in our list and return any matches
 
   - /stcat -- List item categories
     - /stcat CATEGORY -- List items in the named CATEGORY

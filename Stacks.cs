@@ -29,7 +29,7 @@ using System.Linq;
 
 namespace Oxide.Plugins
 {
-    [Info("Stacks", "RFC1920", "1.0.1")]
+    [Info("Stacks", "RFC1920", "1.0.2")]
     [Description("Manage stack sizes for items in Rust.")]
     class Stacks : RustPlugin
     {
@@ -66,6 +66,8 @@ namespace Oxide.Plugins
                 ["itemlist"] = "Items in {0}:\n{1}\n  To set the stack size for all items in this category, add the value to the end of this command, e.g. /stcat traps 10\n  THIS IS NOT REVERSIBLE!",
                 ["catstack"] = "The stack size for each item in category {0} was set to {1}.",
                 ["invalid"] = "Invalid item {0} selected.",
+                ["found"] = "Found {0} matching item(s)\n{1}",
+                ["none"] = "None",
                 ["invalidc"] = "Invalid category: {0}."
             }, this);
         }
@@ -219,6 +221,23 @@ namespace Oxide.Plugins
             }
             else if (args.Length == 2)
             {
+                if(args[0] == "search")
+                {
+                    string res = "";
+                    int i = 0;
+                    foreach(var nm in name2cat.Keys)
+                    {
+                        if (nm.ToLower().Contains(args[1].ToLower()))
+                        {
+                            i++;
+                            var cat = name2cat[nm];
+                            var stackinfo = (from rv in cat2items[cat] where rv.itemName.Contains(nm) select rv.stackSize).FirstOrDefault().ToString();
+                            res += $"\t[{name2cat[nm]}] {nm} ({stackinfo})\n";
+                        }
+                    }
+                    Message(iplayer, "found", i.ToString(), res);
+                    return;
+                }
                 DoLog("Item name AND stack size set on command line: Set the stack size for the named item.");
 
                 itemName = args[0];
