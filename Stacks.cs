@@ -29,22 +29,16 @@ using System.Linq;
 
 namespace Oxide.Plugins
 {
-    [Info("Stacks", "RFC1920", "1.0.2")]
+    [Info("Stacks", "RFC1920", "1.0.3")]
     [Description("Manage stack sizes for items in Rust.")]
     class Stacks : RustPlugin
     {
         #region vars
-        private Dictionary<string, List<StackInfo>> cat2items = new Dictionary<string, List<StackInfo>>();
+        private Dictionary<string, Dictionary<string, int>> cat2items = new Dictionary<string, Dictionary<string, int>>();
         private Dictionary<string, string> name2cat = new Dictionary<string, string>();
         private DynamicConfigFile data;
         private DynamicConfigFile bdata;
         ConfigData configData;
-
-        class StackInfo
-        {
-            public string itemName;
-            public int stackSize;
-        }
         #endregion
 
         #region Message
@@ -67,6 +61,9 @@ namespace Oxide.Plugins
                 ["catstack"] = "The stack size for each item in category {0} was set to {1}.",
                 ["invalid"] = "Invalid item {0} selected.",
                 ["found"] = "Found {0} matching item(s)\n{1}",
+                ["imported"] = "Imported {0} item(s)",
+                ["exported"] = "Exported {0} item(s)",
+                ["importfail"] = "Import failed :(",
                 ["none"] = "None",
                 ["invalidc"] = "Invalid category: {0}."
             }, this);
@@ -80,6 +77,8 @@ namespace Oxide.Plugins
 
             AddCovalenceCommand("stack", "CmdStackInfo");
             AddCovalenceCommand("stcat", "CmdStackCats");
+            AddCovalenceCommand("stimport", "CmdStackImport");
+            AddCovalenceCommand("stexport", "CmdStackExport");
         }
 
         private string GetHeldItem(BasePlayer player)
@@ -99,6 +98,98 @@ namespace Oxide.Plugins
             }
 
             return itemName;
+        }
+
+        // for SSC
+        class Items
+        {
+            public Dictionary<string, int> itemlist = new Dictionary<string, int>();
+        }
+
+        private void CmdStackExport(IPlayer iplayer, string command, string[] args)
+        {
+            var ssc = Interface.Oxide.DataFileSystem.GetFile("StackSizeController");
+            var itemList = ItemManager.GetItemDefinitions();
+            var forSSC = new Dictionary<string, int>();
+            int i = 0;
+
+            foreach(var category in cat2items)
+            {
+                Puts($"Export working on category {category.Key}");
+                foreach (var item in category.Value)
+                {
+                    Puts($"  Item: {item.Key}");
+                    var mykey = (from rv in itemList where rv.name.ToString().Equals(item.Key) select rv.displayName.english.ToString()).FirstOrDefault();
+                    if (mykey == null) continue;
+                    if (!forSSC.ContainsKey(mykey) && !string.IsNullOrEmpty(mykey))
+                    {
+                        forSSC.Add(mykey, item.Value);
+                        i++;
+                    }
+                }
+            }
+            Items sscItems = new Items()
+            {
+                itemlist = forSSC
+            };
+            ssc.WriteObject(sscItems);
+            Message(iplayer, "exported", i.ToString());
+        }
+
+        private void CmdStackImport(IPlayer iplayer, string command, string[] args)
+        {
+            Puts("Opening data file for SSC");
+            var ssc = Interface.Oxide.DataFileSystem.GetFile("StackSizeController");
+            Items sscitems = ssc.ReadObject<Items>();
+            Puts("Successfully read object");
+            var itemList = ItemManager.GetItemDefinitions();
+
+            cat2items = new Dictionary<string, Dictionary<string, int>>();
+            name2cat = new Dictionary<string, string>();
+            ItemDefinition id = null;
+
+            int i = 0;
+            foreach (KeyValuePair<string, int> item in sscitems.itemlist)
+            {
+                Puts($"Processing '{item.Key}' in SSC itemlist.");
+
+                foreach (var idef in itemList)
+                {
+                    if(idef.displayName.english.ToString() ==  item.Key)
+                    {
+                        id = idef;
+                        break;
+                    }
+                }
+                if (id == null) continue;
+
+                var nm = id.name;
+                var cat = id.category.ToString().ToLower();
+                var st = id.stackable;
+
+                Puts($"{item.Key} ({nm}): category {cat}, stack size {st.ToString()}");
+
+                if (!cat2items.ContainsKey(cat))
+                {
+                    // Category missing, create it
+                    cat2items.Add(cat, new Dictionary<string, int>());
+                }
+
+                cat2items[cat].Add(nm, st);
+
+                name2cat.Add(nm, cat);
+                i++;
+            }
+            if (i > 0)
+            {
+                Message(iplayer, "imported", i.ToString());
+                SaveData();
+                LoadData();
+            }
+            else
+            {
+                Message(iplayer, "importfail");
+            }
         }
 
         private void CmdStackCats(IPlayer iplayer, string command, string[] args)
@@ -121,20 +212,21 @@ namespace Oxide.Plugins
                     Message(iplayer, "invalidc", args[0]);
                     return;
                 }
-                foreach(var item in cat2items[args[0]])
+                foreach(KeyValuePair<string, int> item in cat2items[args[0]])
                 {
-                    items += $"\t{item.itemName}: {item.stackSize.ToString()}\n";
+                    items += $"\t{item.Key}: {item.Value.ToString()}\n";
                 }
                 Message(iplayer, "itemlist", args[0], items);
             }
             else if (args.Length == 2)
             {
-                foreach(var item in cat2items[args[0]])
+                if (!cat2items.ContainsKey(args[0])) return;
+                foreach(KeyValuePair<string, int> item in cat2items[args[0]])
                 {
                     int.TryParse(args[1], out stack);
                     if (stack > 0)
                     {
-                        UpdateItem(item.itemName, stack);
+                        UpdateItem(item.Key, stack);
                     }
                 }
                 Message(iplayer, "catstack", args[0], args[1]);
@@ -155,15 +247,14 @@ namespace Oxide.Plugins
                 // Command alone, no args: get current stack size for held item
                 DoLog("0: No item name set.  Looking for held entity");
                 itemName = GetHeldItem(player);
-                Puts(itemName);
 
                 if (itemName == null) { Message(iplayer, "helptext1"); return; }
 
                 if (name2cat.ContainsKey(itemName))
                 {
                     var cat = name2cat[itemName];
-                    var stackinfo = from rv in cat2items[cat] where rv.itemName.Contains(itemName) select rv.stackSize;
-                    Message(iplayer, "current", itemName, stackinfo.FirstOrDefault().ToString());
+                    var stackinfo = cat2items[cat][itemName].ToString();
+                    Message(iplayer, "current", itemName, stackinfo);
                 }
                 else
                 {
@@ -206,15 +297,16 @@ namespace Oxide.Plugins
                             itemName += ".item";
                         }
                     }
+
                     if (name2cat.ContainsKey(itemName))
                     {
                         var cat = name2cat[itemName];
-                        var stackinfo = from rv in cat2items[cat] where rv.itemName.Contains(itemName) select rv.stackSize;
-                        Message(iplayer, "current", itemName, stackinfo.FirstOrDefault().ToString());
+                        var stackinfo = cat2items[cat][itemName].ToString();
+                        Message(iplayer, "current", itemName, stackinfo);
                     }
                     else
                     {
-                        Message(iplayer, "invalid");
+                        Message(iplayer, "invalid", itemName);
                         return;
                     }
                 }
@@ -231,7 +323,7 @@ namespace Oxide.Plugins
                         {
                             i++;
                             var cat = name2cat[nm];
-                            var stackinfo = (from rv in cat2items[cat] where rv.itemName.Contains(nm) select rv.stackSize).FirstOrDefault().ToString();
+                            var stackinfo = cat2items[cat][nm].ToString();
                             res += $"\t[{name2cat[nm]}] {nm} ({stackinfo})\n";
                         }
                     }
@@ -270,9 +362,9 @@ namespace Oxide.Plugins
         {
             DoLog("LoadData called");
             data = Interface.Oxide.DataFileSystem.GetFile(Name + "/stacking");
-            cat2items = data.ReadObject<Dictionary<string, List<StackInfo>>>();
+            cat2items = data.ReadObject<Dictionary<string, Dictionary<string, int>>>();
 
-            bdata = Interface.Oxide.DataFileSystem.GetFile(Name + "/items");
+            bdata = Interface.Oxide.DataFileSystem.GetFile(Name + "/name2cat");
             name2cat = bdata.ReadObject<Dictionary<string, string>>();
         }
         private void SaveData()
@@ -297,45 +389,68 @@ namespace Oxide.Plugins
             UpdateItemList(itemName, stack);
         }
 
-        void UpdateItemList(string itemName = null, int stack = 0)
+        void UpdateItemList(string itemNameToSet = null, int stack = 0)
         {
-            if(itemName != null && stack > 0)
+            DoLog("Update ItemList");
+            if (itemNameToSet != null && stack > 0)
             {
                 // Update one item
-                var cat = name2cat[itemName];
-                var arr = cat2items[cat];
-                var old = from rv in cat2items[cat] where rv.itemName.Equals(itemName) select rv;
-                if (old != null)
+                var cat = name2cat[itemNameToSet] ?? null;
+                if (cat != null && !cat2items.ContainsKey(cat))
                 {
-                    var oldItem = old.FirstOrDefault();
-                    if (oldItem != null)
-                    {
-                        oldItem.stackSize = stack;
-                        SaveData();
-                    }
+                    // Category missing, create it
+                    cat2items.Add(cat, new Dictionary<string, int>());
+                }
+
+                if(cat2items[cat].ContainsKey(itemNameToSet))
+                {
+                    cat2items[cat][itemNameToSet] = stack;
+                    SaveData();
                 }
                 return;
             }
 
-            cat2items = new Dictionary<string, List<StackInfo>>();
+            var oldcat2items = cat2items;
+            cat2items = new Dictionary<string, Dictionary<string, int>>();
             foreach(var itemdef in ItemManager.itemDictionary)
             {
-                // Re-populate saved list.
+                DoLog("Re-populate saved list");
                 var cat = itemdef.Value.category.ToString().ToLower();
+                var itemName = itemdef.Value.name;
+                var stackable = itemdef.Value.stackable;
 
                 if (!cat2items.ContainsKey(cat))
                 {
                     // Category missing, create it
-                    cat2items.Add(cat, new List<StackInfo>());
+                    cat2items.Add(cat, new Dictionary<string, int>());
                 }
 
-                cat2items[cat].Add(new StackInfo()
+                if (oldcat2items.Count > 0)
                 {
-                    itemName = itemdef.Value.name,
-                    stackSize = itemdef.Value.stackable
-                });
+                    if(oldcat2items[cat].ContainsKey(itemName))
+                    {
+                        // Preserve previously set stacksize
+                        var oldstack = oldcat2items[cat][itemName];
+                        if (oldstack > 0)
+                        {
+                            if (!cat2items[cat].ContainsKey(itemName))
+                            {
+                                DoLog($"Stack size for {itemName} was previously set to {oldstack.ToString()}");
+                                cat2items[cat].Add(itemName, oldstack);
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    if (!cat2items[cat].ContainsKey(itemName))
+                    {
+                        DoLog($"Setting new stack size for {itemName} to {stackable.ToString()}");
+                        cat2items[cat].Add(itemName, stackable);
+                    }
+                }
 
-                if (!name2cat.ContainsKey(itemdef.Value.name)) name2cat.Add(itemdef.Value.name, cat);
+                if (!name2cat.ContainsKey(itemName)) name2cat.Add(itemName, cat);
             }
             SaveData();
         }
