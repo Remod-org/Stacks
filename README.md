@@ -14,6 +14,9 @@ All commands currently require admin
     - /stcat CATEGORY -- List items in the named CATEGORY
     - /stcat CATEGORY NUM -- Set the stack size for all items in the named CATEGORY to NUM
 
+  - /stimport -- Import from StackSizeController.json data file
+  - /stexport -- Export to StackSizeController.json data file
+
   For any item, you can leave off or include the .item ending for the name.  It will be appended if left off and stored as such.
 
   We use two data files, one listing items by category and another used for quick lookup of the category for any item.
