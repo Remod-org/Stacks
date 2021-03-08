@@ -29,7 +29,7 @@ using System.Linq;
 
 namespace Oxide.Plugins
 {
-    [Info("Stacks", "RFC1920", "1.0.4")]
+    [Info("Stacks", "RFC1920", "1.0.5")]
     [Description("Manage stack sizes for items in Rust.")]
     class Stacks : RustPlugin
     {
@@ -149,25 +149,26 @@ namespace Oxide.Plugins
             ItemDefinition id = null;
 
             int i = 0;
+            int stack = 0;
             foreach (KeyValuePair<string, int> item in sscitems.itemlist)
             {
                 Puts($"Processing '{item.Key}' in SSC itemlist.");
 
                 foreach (var idef in itemList)
                 {
-                    if(idef.displayName.english.ToString() ==  item.Key)
+                    if(idef.displayName.english.ToString() == item.Key)
                     {
                         id = idef;
+                        stack = item.Value;
                         break;
                     }
                 }
-                if (id == null) continue;
+                if (id == null || stack == 0) continue;
 
                 var nm = id.name;
                 var cat = id.category.ToString().ToLower();
-                var st = id.stackable;
 
-                Puts($"{item.Key} ({nm}): category {cat}, stack size {st.ToString()}");
+                Puts($"{item.Key} ({nm}): category {cat}, stack size {stack.ToString()}");
 
                 if (!cat2items.ContainsKey(cat))
                 {
@@ -175,7 +176,7 @@ namespace Oxide.Plugins
                     cat2items.Add(cat, new Dictionary<string, int>());
                 }
 
-                cat2items[cat].Add(nm, st);
+                cat2items[cat].Add(nm, stack);
 
                 name2cat.Add(nm, cat);
                 i++;
