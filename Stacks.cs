@@ -29,13 +29,13 @@ using System.Linq;
 
 namespace Oxide.Plugins
 {
-    [Info("Stacks", "RFC1920", "1.0.5")]
+    [Info("Stacks", "RFC1920", "1.0.6")]
     [Description("Manage stack sizes for items in Rust.")]
     class Stacks : RustPlugin
     {
         #region vars
-        private Dictionary<string, Dictionary<string, int>> cat2items = new Dictionary<string, Dictionary<string, int>>();
-        private Dictionary<string, string> name2cat = new Dictionary<string, string>();
+        private SortedDictionary<string, SortedDictionary<string, int>> cat2items = new SortedDictionary<string, SortedDictionary<string, int>>();
+        private SortedDictionary<string, string> name2cat = new SortedDictionary<string, string>();
         private DynamicConfigFile data;
         private DynamicConfigFile bdata;
         ConfigData configData;
@@ -144,8 +144,8 @@ namespace Oxide.Plugins
             Puts("Successfully read object");
             var itemList = ItemManager.GetItemDefinitions();
 
-            cat2items = new Dictionary<string, Dictionary<string, int>>();
-            name2cat = new Dictionary<string, string>();
+            cat2items = new SortedDictionary<string, SortedDictionary<string, int>>();
+            name2cat = new SortedDictionary<string, string>();
             ItemDefinition id = null;
 
             int i = 0;
@@ -173,7 +173,7 @@ namespace Oxide.Plugins
                 if (!cat2items.ContainsKey(cat))
                 {
                     // Category missing, create it
-                    cat2items.Add(cat, new Dictionary<string, int>());
+                    cat2items.Add(cat, new SortedDictionary<string, int>());
                 }
 
                 cat2items[cat].Add(nm, stack);
@@ -363,10 +363,10 @@ namespace Oxide.Plugins
         {
             DoLog("LoadData called");
             data = Interface.Oxide.DataFileSystem.GetFile(Name + "/stacking");
-            cat2items = data.ReadObject<Dictionary<string, Dictionary<string, int>>>();
+            cat2items = data.ReadObject<SortedDictionary<string, SortedDictionary<string, int>>>();
 
             bdata = Interface.Oxide.DataFileSystem.GetFile(Name + "/name2cat");
-            name2cat = bdata.ReadObject<Dictionary<string, string>>();
+            name2cat = bdata.ReadObject<SortedDictionary<string, string>>();
         }
         private void SaveData()
         {
@@ -400,7 +400,7 @@ namespace Oxide.Plugins
                 if (cat != null && !cat2items.ContainsKey(cat))
                 {
                     // Category missing, create it
-                    cat2items.Add(cat, new Dictionary<string, int>());
+                    cat2items.Add(cat, new SortedDictionary<string, int>());
                 }
 
                 if(cat2items[cat].ContainsKey(itemNameToSet))
@@ -412,7 +412,7 @@ namespace Oxide.Plugins
             }
 
             var oldcat2items = cat2items;
-            cat2items = new Dictionary<string, Dictionary<string, int>>();
+            cat2items = new SortedDictionary<string, SortedDictionary<string, int>>();
             foreach(var itemdef in ItemManager.itemDictionary)
             {
                 DoLog("Re-populate saved list");
@@ -423,7 +423,7 @@ namespace Oxide.Plugins
                 if (!cat2items.ContainsKey(cat))
                 {
                     // Category missing, create it
-                    cat2items.Add(cat, new Dictionary<string, int>());
+                    cat2items.Add(cat, new SortedDictionary<string, int>());
                 }
 
                 if (oldcat2items.Count > 0)
