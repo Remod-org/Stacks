@@ -29,7 +29,7 @@ using System.Linq;
 
 namespace Oxide.Plugins
 {
-    [Info("Stacks", "RFC1920", "1.0.3")]
+    [Info("Stacks", "RFC1920", "1.0.4")]
     [Description("Manage stack sizes for items in Rust.")]
     class Stacks : RustPlugin
     {
@@ -437,6 +437,7 @@ namespace Oxide.Plugins
                             {
                                 DoLog($"Stack size for {itemName} was previously set to {oldstack.ToString()}");
                                 cat2items[cat].Add(itemName, oldstack);
+                                itemdef.Value.stackable = oldstack;
                             }
                         }
                     }
@@ -447,6 +448,7 @@ namespace Oxide.Plugins
                     {
                         DoLog($"Setting new stack size for {itemName} to {stackable.ToString()}");
                         cat2items[cat].Add(itemName, stackable);
+                        itemdef.Value.stackable = stackable;
                     }
                 }
 
