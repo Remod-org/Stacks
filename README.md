@@ -1,6 +1,10 @@
 # Stacks
 Get or set stack sizes by item name, held item, or category
 
+### Permissions
+
+ - stacks.admin -- Allow use of commands for players who are not also admins.  Normally, you will not need to issue this to anyone.
+
 ### Commands
 All commands currently require admin
 
