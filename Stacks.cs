@@ -30,7 +30,7 @@ using System.Runtime.CompilerServices;
 
 namespace Oxide.Plugins
 {
-    [Info("Stacks", "RFC1920", "1.0.7")]
+    [Info("Stacks", "RFC1920", "1.0.8")]
     [Description("Manage stack sizes for items in Rust.")]
     internal class Stacks : RustPlugin
     {
@@ -206,30 +206,36 @@ namespace Oxide.Plugins
             else if (args.Length == 1)
             {
                 string items = null;
-                if (!cat2items.ContainsKey(args[0]))
+                string cat = args[0];
+                if (!cat2items.ContainsKey(cat))
                 {
-                    Message(iplayer, "invalidc", args[0]);
+                    Message(iplayer, "invalidc", cat);
                     return;
                 }
-                foreach (KeyValuePair<string, int> item in cat2items[args[0]])
+                foreach (KeyValuePair<string, int> item in cat2items[cat])
                 {
                     items += $"\t{item.Key}: {item.Value}\n";
                 }
-                Message(iplayer, "itemlist", args[0], items);
+                Message(iplayer, "itemlist", cat, items);
             }
             else if (args.Length == 2)
             {
-                if (!cat2items.ContainsKey(args[0])) return;
-                foreach (KeyValuePair<string, int> item in cat2items[args[0]])
+                string cat = args[0];
+                if (!cat2items.ContainsKey(cat)) return;
+
+                int stack;
+                int.TryParse(args[1], out stack);
+                bool success = false;
+
+                if (stack > 0)
                 {
-                    int stack;
-                    int.TryParse(args[1], out stack);
-                    if (stack > 0)
+                    success = true;
+                    foreach (KeyValuePair<string, int> item in new SortedDictionary<string, int>(cat2items[cat]))
                     {
                         UpdateItem(item.Key, stack);
                     }
                 }
-                Message(iplayer, "catstack", args[0], args[1]);
+                if (success) Message(iplayer, "catstack", cat, stack.ToString());
             }
         }
 
